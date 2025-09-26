@@ -1,4 +1,4 @@
-import { initVariables } from './modules/setup.js';
+import { initVariables, sessionManager } from './modules/setup.js';
 
 const GA_ENDPOINT = 'https://www.google-analytics.com/mp/collect';
 const GA_MEASUREMENT_ID = `G-`;
@@ -6,7 +6,7 @@ const GA_API_SECRET = ``;
 const GA_CLIENT_ID = ``;
 const version = "3.5.1";
 
-initVariables(version, {"endpoint": GA_ENDPOINT, "measurementId": GA_MEASUREMENT_ID, "secret": GA_API_SECRET, "clientId": GA_CLIENT_ID });
+sessionManager.asyncTracker["mainInit"] = initVariables(version, {"endpoint": GA_ENDPOINT, "measurementId": GA_MEASUREMENT_ID, "secret": GA_API_SECRET, "clientId": GA_CLIENT_ID });
 
 ///////////////////////////////////////////////////////////////////////////////
 // Omnibox
@@ -75,12 +75,12 @@ chrome.omnibox.setDefaultSuggestion({ description: "Open a session in this windo
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "gaTrackEvent") {
-    utils.gaTrackEvent(request, sender, sendResponse)
+    gaTrackEvent(request, sender, sendResponse)
     return
   }
 
   if (request.action === "openSession") {
-    utils.openSession(request, sender, sendResponse)
+    openSession(request, sender, sendResponse)
     return
   }
 });
