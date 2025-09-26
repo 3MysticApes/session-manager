@@ -1,10 +1,6 @@
-import { sessionManager, saveSessionManagerVariable } from './modules/utils.js';
+import { sessionManager, saveSessionManagerVariable, ensureSessionManagerKey } from './modules/base.js';
+await ensureSessionManagerKey(["settings"])
 var localSessionManager = sessionManager;
-var asyncTrackerKeys = Object.keys(localSessionManager.asyncTracker)
-for (const key of asyncTrackerKeys) {
-	await localSessionManager.asyncTracker[key]
-}
-
 
 $("select").each(function () {
 	var open = JSON.parse(localSessionManager.settings.open);
@@ -36,7 +32,7 @@ $("#pinned-noreplace").change(function () {
 	saveSessionManagerVariable(["settings"])
 }).prop("checked", localSessionManager.settings.noreplacingpinned === "true");
 
-chrome.runtime.sendMessage({ type: "gaTrackEvent", data: { events: [
+chrome.runtime.sendMessage({ action: "gaTrackEvent", data: { events: [
 	{
 	name: "trackPage",
 	params: {
@@ -45,5 +41,5 @@ chrome.runtime.sendMessage({ type: "gaTrackEvent", data: { events: [
 		"label": "page"
 	}
 	}
-]} }, function(response) { });
+]} });
 

@@ -1,18 +1,10 @@
-import { initVariables, sessionManager } from './modules/setup.js';
-
-const GA_ENDPOINT = 'https://www.google-analytics.com/mp/collect';
-const GA_MEASUREMENT_ID = `G-`;
-const GA_API_SECRET = ``;
-const GA_CLIENT_ID = ``;
-const version = "3.5.1";
-
-sessionManager.asyncTracker["mainInit"] = initVariables(version, {"endpoint": GA_ENDPOINT, "measurementId": GA_MEASUREMENT_ID, "secret": GA_API_SECRET, "clientId": GA_CLIENT_ID });
+import { sessionManager } from './modules/base.js';
 
 ///////////////////////////////////////////////////////////////////////////////
 // Omnibox
 ///////////////////////////////////////////////////////////////////////////////
 chrome.omnibox.onInputChanged.addListener(function (text, suggest) {
-	var sessions = JSON.parse(localStorage.sessions);
+	var sessions = JSON.parse(sessionManager.settings.sessions);
 	text = text.trim();
 	var ltext = text.toLowerCase();
 	var suggestions = [];
@@ -51,10 +43,10 @@ chrome.omnibox.onInputChanged.addListener(function (text, suggest) {
 });
 
 chrome.omnibox.onInputEntered.addListener(function (name) {
-	var sessions = JSON.parse(localStorage.sessions);
+	var sessions = JSON.parse(sessionManager.settings.sessions);
 	
 	if (sessions[name]) {
-    chrome.runtime.sendMessage({ type: "openSession", data: { 
+    chrome.runtime.sendMessage({ action: "openSession", data: { 
       cwinId: null, 
       urls: sessions[name], 
       event: null, 
@@ -66,21 +58,8 @@ chrome.omnibox.onInputEntered.addListener(function (name) {
           "action": "Omnibox",
         }
       }]
-     } }, function(response) { });
+     } });
 	}
 });
 
 chrome.omnibox.setDefaultSuggestion({ description: "Open a session in this window" });
-
-
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === "gaTrackEvent") {
-    gaTrackEvent(request, sender, sendResponse)
-    return
-  }
-
-  if (request.action === "openSession") {
-    openSession(request, sender, sendResponse)
-    return
-  }
-});

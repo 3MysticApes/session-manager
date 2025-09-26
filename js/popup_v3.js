@@ -1,3 +1,7 @@
+import { sessionManager, saveSessionManagerVariable, ensureSessionManagerKey } from './modules/base.js';
+await ensureSessionManagerKey(["settings"])
+var localSessionManager = sessionManager;
+
 (function(){ "use strict";
 
 /*** utils ***/
@@ -23,8 +27,8 @@ var utils = {
 		return $("<div/>").text(text).html();
 	},
 	tabs: function(cb){
-		chrome.tabs.query({ windowId: null }, function(tabs) {
-			if (localStorage.pinned === "skip") {
+		chrome.tabs.query({ currentWindow: true}, (tabs)=> {
+			if (localSessionManager.settings.pinned === "skip") {
 				tabs = tabs.filter(function(t){ return !t.pinned; });
 			}
 			
@@ -34,44 +38,27 @@ var utils = {
 	}
 };
 
-
-/*** data ***/
-var background = chrome.extension.getBackgroundPage();
-
 var state = {
 	name: "",
 	action: "",
 	entered: ""
 };
 
-var sessionManagerSettings = null;
-chrome.storage.local.get(["settings"], function(result) {
-  if (chrome.runtime.lastError) {
-    console.error("Error getting multiple values:", chrome.runtime.lastError);
-    return
-  }
-  sessionManagerSettings = result.settings
-});  
-while((sessionManagerSettings === undefined) || (sessionManagerSettings === null)){
-  utils.sleep(10)
-}
-
 var sessions = {
-  list: JSON.parse(sessionManagerSettings.sessions),
-  temp: sessionManagerSettings.temp ? JSON.parse(localStorage.temp) : undefined,
+  list: (localSessionManager.settings.sessions),
+  temp: localSessionManager.settings.temp ? JSON.parse(localSessionManager.settings.temp) : undefined,
 	
 	load: function(){
 		var $temp = $("#main-saved-temp"), $list = $("#main-saved-list");
 		$temp.add($list).empty();
 		
 		if (sessions.temp) {
-			localStorage.temp = JSON.stringify(sessions.temp);
+			localSessionManager.settings.temp = JSON.stringify(sessions.temp);
 			$temp.html("<a>&times;</a> Temp session: " + sessions.display(null, true) + " - <a>Open</a> - <a>Add</a> (<a>tab</a>)<hr>");
 		} else {
-			delete localStorage.temp;
+			delete localSessionManager.settings.temp;
 		}
 		
-		localStorage.sessions = JSON.stringify(sessions.list);
 		$.each(sessions.list, function(name){
 			$("<div/>").html("<big>" + utils.escape(name) + "</big><a>&times;</a><br>" +
 				sessions.display(name, true) +
@@ -82,6 +69,7 @@ var sessions = {
 		$("hr", "#main-saved").last().remove();
 		
 		$list.children().css("margin-right", Object.keys(sessions.list).length > 10 ? 5 : 0);
+    saveSessionManagerVariable(["settings"])
 	},
 	display: function(name, count){
 		var prefix = "", session = name === null ? (name = "temp session", !count && (prefix = "the "), sessions.temp) : sessions.list[name];
@@ -126,7 +114,7 @@ var actions = {
 			next();
 		});
 		
-    chrome.runtime.sendMessage({ type: "gaTrackEvent", data: { events: [
+    chrome.runtime.sendMessage({ action: "gaTrackEvent", data: { events: [
       {
         name: "trackAction",
         params: {
@@ -135,17 +123,17 @@ var actions = {
           "label": state.entered
         }
       }
-    ]} }, function(response) { });
+    ]}});
 	}],
 	
 	export: [function(){
-		var data = new Blob([localStorage.sessions]);
+		var data = new Blob([localSessionManager.settings.sessions]);
 		
 		$("#export-link").prop("href", (window.URL || window.webkitURL).createObjectURL(data));
 	}, function(){
 		$("#export-check").fadeIn().delay(2000).fadeOut();
 		
-		chrome.runtime.sendMessage({ type: "gaTrackEvent", data: { events: [
+		chrome.runtime.sendMessage({ action: "gaTrackEvent", data: { events: [
       {
         name: "trackAction",
         params: {
@@ -153,7 +141,7 @@ var actions = {
           "action": "Export"
         }
       }
-    ]} }, function(response) { });
+    ]} });
 	}],
 	
 	rename: [function(name){
@@ -178,7 +166,7 @@ var actions = {
 			delete sessions.list[oname];
 		}
 		
-		chrome.runtime.sendMessage({ type: "gaTrackEvent", data: { events: [
+		chrome.runtime.sendMessage({ action: "gaTrackEvent", data: { events: [
       {
         name: "trackAction",
         params: {
@@ -186,7 +174,7 @@ var actions = {
           "action": "SessionRename"
         }
       }
-    ]} }, function(response) { });
+    ]} });
 	}],
 	
 	add: [function(name){
@@ -196,7 +184,7 @@ var actions = {
 			Array.prototype.push.apply(name === null ? sessions.temp : sessions.list[name], tabs);
 		});
 		
-		chrome.runtime.sendMessage({ type: "gaTrackEvent", data: { events: [
+		chrome.runtime.sendMessage({ action: "gaTrackEvent", data: { events: [
       {
         name: "trackAction",
         params: {
@@ -205,7 +193,7 @@ var actions = {
           "label": name === null ? "Temp": "Session"
         }
       }
-    ]} }, function(response) { });
+    ]} });
 	}],
 	
 	tab: [function(name){
@@ -216,7 +204,7 @@ var actions = {
 			sessions.load();
 		});
 		
-		chrome.runtime.sendMessage({ type: "gaTrackEvent", data: { events: [
+		chrome.runtime.sendMessage({ action: "gaTrackEvent", data: { events: [
       {
         name: "trackAction",
         params: {
@@ -225,13 +213,13 @@ var actions = {
           "label": name === null ? "Temp": "Session"
         }
       }
-    ]} }, function(response) { });
+    ]} });
 	}],
 	
 	replace: [function(name){
 		utils.confirm("Are you sure you want to replace " + sessions.display(name) + " with the current window's tabs?");
 	}, function(name){
-    chrome.runtime.sendMessage({ type: "gaTrackEvent", data: { events: [
+    chrome.runtime.sendMessage({ action: "gaTrackEvent", data: { events: [
       {
         name: "trackAction",
         params: {
@@ -240,7 +228,7 @@ var actions = {
           "label": "Session"
         }
       }
-    ]} }, function(response) { });
+    ]} });
 		
 		utils.tabs(function(tabs){
 			sessions.list[name] = tabs;
@@ -258,7 +246,7 @@ var actions = {
 			delete sessions.list[name];
 		}
 		
-    chrome.runtime.sendMessage({ type: "gaTrackEvent", data: { events: [
+    chrome.runtime.sendMessage({ action: "gaTrackEvent", data: { events: [
       {
         name: "trackAction",
         params: {
@@ -267,7 +255,7 @@ var actions = {
           "label": name === null ? "Temp" : "Session"
         }
       }
-    ]} }, function(response) { });
+    ]} });
 	}],
 	
 	savetemp: [function(){
@@ -275,7 +263,7 @@ var actions = {
 			sessions.temp = tabs;
 		});
 		
-		chrome.runtime.sendMessage({ type: "gaTrackEvent", data: { events: [
+		chrome.runtime.sendMessage({ action: "gaTrackEvent", data: { events: [
       {
         name: "trackAction",
         params: {
@@ -284,7 +272,7 @@ var actions = {
           "label": "Temp"
         }
       }
-    ]} }, function(response) { });
+    ]} });
 	}],
 	
 	save: [function(){
@@ -323,13 +311,18 @@ $("#main-saved-list").on("click", "big, div > a:not([title])", function(){
 	
 	if (action === "open") {
 		chrome.windows.getCurrent(function(win){
-			chrome.runtime.sendMessage({ type: "openSession", data: { 
+			chrome.runtime.sendMessage({ action: "openSession", data: { 
 				cwinId: win.id, 
 				urls: sessions.list[name], 
-				event: e, 
+				event: {
+          ctrlKey: e.ctrlKey,
+          metaKey: e.metaKey,
+          shiftKey: e.shiftKey,
+          altKey: e.altKey
+        },
 				isTemp: false,
 				gaEvents: []
-			} }, function(response) { });
+			} });
 		});
 	} else {
 		utils.action(action);
@@ -342,13 +335,18 @@ $("#main-saved-temp").on("click", "a:not([title])", function(e){
 	
 	if (action === "open") {
 		chrome.windows.getCurrent(function(win){
-      chrome.runtime.sendMessage({ type: "openSession", data: { 
+      chrome.runtime.sendMessage({ action: "openSession", data: { 
 				cwinId: win.id, 
 				urls: sessions.temp, 
-				event: e, 
+				event: {
+          ctrlKey: e.ctrlKey,
+          metaKey: e.metaKey,
+          shiftKey: e.shiftKey,
+          altKey: e.altKey
+        }, 
 				isTemp: true,
 				gaEvents: []
-			} }, function(response) { });
+			} });
 		});
 	} else if (action.length === 1) {
 		utils.action("remove");
@@ -365,10 +363,10 @@ $("#import-file").change(function(){
 /*** init ***/
 sessions.load();
 
-if (localStorage.readchanges !== "true") {
+if (localSessionManager.settings.readchanges !== "true") {
 	$("#main-changelog").show();
 	
-	localStorage.readchanges = true;
+	localSessionManager.settings.readchanges = true;
 }
 
 if (location.search) {
@@ -380,7 +378,7 @@ if (location.search) {
 	
 	utils.view("import");
 	
-	chrome.runtime.sendMessage({ type: "gaTrackEvent", data: { events: [
+	chrome.runtime.sendMessage({ action: "gaTrackEvent", data: { events: [
       {
         name: "trackPage",
         params: {
@@ -389,9 +387,9 @@ if (location.search) {
           "label": "page"
         }
       }
-    ]} }, function(response) { });
+    ]} });
 } else {
-	chrome.runtime.sendMessage({ type: "gaTrackEvent", data: { events: [
+	chrome.runtime.sendMessage({ action: "gaTrackEvent", data: { events: [
       {
         name: "trackPage",
         params: {
@@ -400,7 +398,7 @@ if (location.search) {
           "label": "page"
         }
       }
-    ]} }, function(response) { });
+    ]} });
 }
 
 })();
